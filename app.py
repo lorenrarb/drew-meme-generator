@@ -69,34 +69,42 @@ def get_swapper():
         if not os.path.exists(model_path):
             print(f"Downloading face swap model (this may take 1-2 minutes)...")
 
-            # Use a public mirror/CDN for the inswapper model
-            # This is from a verified public source
-            model_url = "https://github.com/facefusion/facefusion-assets/releases/download/models/inswapper_128.onnx"
+            # Try multiple CDN sources for the inswapper model
+            model_urls = [
+                "https://civitai.com/api/download/models/85159",  # CivitAI mirror
+                "https://huggingface.co/ezioruan/inswapper_128.onnx/resolve/main/inswapper_128.onnx",  # Alternative HF
+                "https://github.com/deepinsight/insightface/releases/download/v0.7/inswapper_128.onnx",  # Original source
+            ]
 
-            try:
-                print("Starting download...")
-                response = requests.get(model_url, stream=True, timeout=300)
-                response.raise_for_status()
+            downloaded = False
+            for i, model_url in enumerate(model_urls):
+                try:
+                    print(f"Trying source {i+1}/{len(model_urls)}...")
+                    response = requests.get(model_url, stream=True, timeout=300, allow_redirects=True)
+                    response.raise_for_status()
 
-                # Save with progress
-                total_size = int(response.headers.get('content-length', 0))
-                downloaded = 0
-                with open(model_path, 'wb') as f:
-                    for chunk in response.iter_content(chunk_size=8192):
-                        if chunk:
-                            f.write(chunk)
-                            downloaded += len(chunk)
-                            if total_size > 0:
-                                progress = (downloaded / total_size) * 100
-                                if downloaded % (1024 * 1024 * 10) < 8192:  # Log every 10MB
-                                    print(f"Downloaded {progress:.1f}%...")
+                    # Save with progress
+                    total_size = int(response.headers.get('content-length', 0))
+                    bytes_downloaded = 0
+                    with open(model_path, 'wb') as f:
+                        for chunk in response.iter_content(chunk_size=8192):
+                            if chunk:
+                                f.write(chunk)
+                                bytes_downloaded += len(chunk)
+                                if total_size > 0:
+                                    progress = (bytes_downloaded / total_size) * 100
+                                    if bytes_downloaded % (1024 * 1024 * 10) < 8192:  # Log every 10MB
+                                        print(f"Downloaded {progress:.1f}%...")
 
-                print("Model downloaded successfully!")
-            except Exception as e:
-                print(f"Error downloading model: {e}")
-                if os.path.exists(model_path):
-                    os.remove(model_path)  # Remove partial download
-                raise
+                    print("Model downloaded successfully!")
+                    downloaded = True
+                    break
+                except Exception as e:
+                    print(f"Source {i+1} failed: {e}")
+                    if os.path.exists(model_path):
+                        os.remove(model_path)  # Remove partial download
+                    if i == len(model_urls) - 1:  # Last attempt
+                        raise Exception("All download sources failed. Please check your network connection.")
 
         # Load the model for face swapping
         print("Loading face swap model...")
