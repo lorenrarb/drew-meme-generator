@@ -61,11 +61,40 @@ def get_face_app():
 def get_swapper():
     global swapper
     if swapper is None:
-        # Use bundled model file (included in the repo)
+        # Try to find the model in the app directory first
         model_path = os.path.join(os.path.dirname(__file__), "inswapper_128.onnx")
 
+        # If not found, download it to the app directory
         if not os.path.exists(model_path):
-            raise FileNotFoundError(f"Face swap model not found at {model_path}. Please ensure inswapper_128.onnx is in the app directory.")
+            print(f"Model not found at {model_path}, downloading...")
+
+            # Download URLs (try each in order)
+            model_urls = [
+                "https://huggingface.co/CountFloyd/deepfake/resolve/main/inswapper_128.onnx",
+                "https://github.com/deepinsight/insightface/releases/download/v0.7/inswapper_128.onnx",
+            ]
+
+            for url in model_urls:
+                try:
+                    print(f"Trying to download from {url}...")
+                    response = requests.get(url, stream=True, timeout=300, allow_redirects=True)
+                    response.raise_for_status()
+
+                    with open(model_path, 'wb') as f:
+                        for chunk in response.iter_content(chunk_size=8192):
+                            if chunk:
+                                f.write(chunk)
+
+                    print(f"Model downloaded successfully to {model_path}!")
+                    break
+                except Exception as e:
+                    print(f"Failed to download from {url}: {e}")
+                    if os.path.exists(model_path):
+                        os.remove(model_path)
+                    continue
+
+            if not os.path.exists(model_path):
+                raise FileNotFoundError(f"Failed to download face swap model. All sources failed.")
 
         print(f"Loading face swap model from {model_path}...")
         swapper = insightface.model_zoo.get_model(model_path, download=False, providers=['CPUExecutionProvider'])
