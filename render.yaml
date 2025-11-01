@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: drew-meme-generator
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app
+    envVars:
+      - key: REDDIT_CLIENT_ID
+        sync: false
+      - key: REDDIT_CLIENT_SECRET
+        sync: false
+      - key: REDDIT_USER_AGENT
+        sync: false
+      - key: XAI_API_KEY
+        sync: false
+      - key: DREW_FACE_PATH
+        value: drew_face.jpg

@@ -1,0 +1,11 @@
+Flask
+praw
+xai-sdk
+opencv-python
+insightface
+numpy
+Pillow
+requests
+onnxruntime
+python-dotenv
+gunicorn
