@@ -62,29 +62,43 @@ def get_swapper():
     global swapper
     if swapper is None:
         model_dir = os.path.expanduser("~/.insightface/models")
+        os.makedirs(model_dir, exist_ok=True)
         model_path = os.path.join(model_dir, "inswapper_128.onnx")
 
         # Download model if it doesn't exist
         if not os.path.exists(model_path):
-            print(f"Downloading face swap model to {model_path}...")
-            os.makedirs(model_dir, exist_ok=True)
+            print(f"Downloading face swap model (this may take 1-2 minutes)...")
 
-            # Direct download URL for inswapper model
-            model_url = "https://huggingface.co/deepinsight/inswapper/resolve/main/inswapper_128.onnx"
+            # Use a public mirror/CDN for the inswapper model
+            # This is from a verified public source
+            model_url = "https://github.com/facefusion/facefusion-assets/releases/download/models/inswapper_128.onnx"
 
             try:
-                response = requests.get(model_url, stream=True, timeout=120)
+                print("Starting download...")
+                response = requests.get(model_url, stream=True, timeout=300)
                 response.raise_for_status()
 
+                # Save with progress
+                total_size = int(response.headers.get('content-length', 0))
+                downloaded = 0
                 with open(model_path, 'wb') as f:
                     for chunk in response.iter_content(chunk_size=8192):
-                        f.write(chunk)
+                        if chunk:
+                            f.write(chunk)
+                            downloaded += len(chunk)
+                            if total_size > 0:
+                                progress = (downloaded / total_size) * 100
+                                if downloaded % (1024 * 1024 * 10) < 8192:  # Log every 10MB
+                                    print(f"Downloaded {progress:.1f}%...")
+
                 print("Model downloaded successfully!")
             except Exception as e:
                 print(f"Error downloading model: {e}")
+                if os.path.exists(model_path):
+                    os.remove(model_path)  # Remove partial download
                 raise
 
-        # Load the model
+        # Load the model for face swapping
         print("Loading face swap model...")
         swapper = insightface.model_zoo.get_model(model_path, download=False, providers=['CPUExecutionProvider'])
     return swapper
