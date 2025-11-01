@@ -61,13 +61,9 @@ def get_face_app():
 def get_swapper():
     global swapper
     if swapper is None:
-        # Allow automatic download if model doesn't exist
-        model_path = os.path.expanduser("~/.insightface/models/inswapper_128.onnx")
-        if not os.path.exists(model_path):
-            print(f"Downloading face swap model to {model_path}...")
-            swapper = insightface.model_zoo.get_model(model_path, download=True, download_zip=True)
-        else:
-            swapper = insightface.model_zoo.get_model(model_path, download=False, download_zip=False)
+        # Use model name, not path - InsightFace handles download location
+        print("Loading face swap model...")
+        swapper = insightface.model_zoo.get_model('inswapper_128.onnx', download=True, providers=['CPUExecutionProvider'])
     return swapper
 
 # Cache functions
