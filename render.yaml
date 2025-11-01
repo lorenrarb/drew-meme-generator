@@ -2,8 +2,9 @@ services:
   - type: web
     name: drew-meme-generator
     env: python
+    plan: standard  # 2 GB RAM for InsightFace models
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:app
+    startCommand: gunicorn app:app --timeout 120 --workers 1 --threads 2
     envVars:
       - key: REDDIT_CLIENT_ID
         sync: false
