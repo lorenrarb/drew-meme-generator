@@ -61,53 +61,13 @@ def get_face_app():
 def get_swapper():
     global swapper
     if swapper is None:
-        model_dir = os.path.expanduser("~/.insightface/models")
-        os.makedirs(model_dir, exist_ok=True)
-        model_path = os.path.join(model_dir, "inswapper_128.onnx")
+        # Use bundled model file (included in the repo)
+        model_path = os.path.join(os.path.dirname(__file__), "inswapper_128.onnx")
 
-        # Download model if it doesn't exist
         if not os.path.exists(model_path):
-            print(f"Downloading face swap model (this may take 1-2 minutes)...")
+            raise FileNotFoundError(f"Face swap model not found at {model_path}. Please ensure inswapper_128.onnx is in the app directory.")
 
-            # Try multiple CDN sources for the inswapper model
-            model_urls = [
-                "https://civitai.com/api/download/models/85159",  # CivitAI mirror
-                "https://huggingface.co/ezioruan/inswapper_128.onnx/resolve/main/inswapper_128.onnx",  # Alternative HF
-                "https://github.com/deepinsight/insightface/releases/download/v0.7/inswapper_128.onnx",  # Original source
-            ]
-
-            downloaded = False
-            for i, model_url in enumerate(model_urls):
-                try:
-                    print(f"Trying source {i+1}/{len(model_urls)}...")
-                    response = requests.get(model_url, stream=True, timeout=300, allow_redirects=True)
-                    response.raise_for_status()
-
-                    # Save with progress
-                    total_size = int(response.headers.get('content-length', 0))
-                    bytes_downloaded = 0
-                    with open(model_path, 'wb') as f:
-                        for chunk in response.iter_content(chunk_size=8192):
-                            if chunk:
-                                f.write(chunk)
-                                bytes_downloaded += len(chunk)
-                                if total_size > 0:
-                                    progress = (bytes_downloaded / total_size) * 100
-                                    if bytes_downloaded % (1024 * 1024 * 10) < 8192:  # Log every 10MB
-                                        print(f"Downloaded {progress:.1f}%...")
-
-                    print("Model downloaded successfully!")
-                    downloaded = True
-                    break
-                except Exception as e:
-                    print(f"Source {i+1} failed: {e}")
-                    if os.path.exists(model_path):
-                        os.remove(model_path)  # Remove partial download
-                    if i == len(model_urls) - 1:  # Last attempt
-                        raise Exception("All download sources failed. Please check your network connection.")
-
-        # Load the model for face swapping
-        print("Loading face swap model...")
+        print(f"Loading face swap model from {model_path}...")
         swapper = insightface.model_zoo.get_model(model_path, download=False, providers=['CPUExecutionProvider'])
     return swapper
 
