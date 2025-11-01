@@ -61,9 +61,32 @@ def get_face_app():
 def get_swapper():
     global swapper
     if swapper is None:
-        # Use model name, not path - InsightFace handles download location
+        model_dir = os.path.expanduser("~/.insightface/models")
+        model_path = os.path.join(model_dir, "inswapper_128.onnx")
+
+        # Download model if it doesn't exist
+        if not os.path.exists(model_path):
+            print(f"Downloading face swap model to {model_path}...")
+            os.makedirs(model_dir, exist_ok=True)
+
+            # Direct download URL for inswapper model
+            model_url = "https://huggingface.co/deepinsight/inswapper/resolve/main/inswapper_128.onnx"
+
+            try:
+                response = requests.get(model_url, stream=True, timeout=120)
+                response.raise_for_status()
+
+                with open(model_path, 'wb') as f:
+                    for chunk in response.iter_content(chunk_size=8192):
+                        f.write(chunk)
+                print("Model downloaded successfully!")
+            except Exception as e:
+                print(f"Error downloading model: {e}")
+                raise
+
+        # Load the model
         print("Loading face swap model...")
-        swapper = insightface.model_zoo.get_model('inswapper_128.onnx', download=True, providers=['CPUExecutionProvider'])
+        swapper = insightface.model_zoo.get_model(model_path, download=False, providers=['CPUExecutionProvider'])
     return swapper
 
 # Cache functions
