@@ -82,17 +82,20 @@ def save_cache(memes):
 def fetch_reddit_memes(limit=12):
     memes = []
     sub = reddit.subreddit('memes+dankmemes')
-    for p in sub.hot(limit=limit*2):
-        u = p.url.lower()
-        if u.endswith(('.jpg','.png')) and not p.over_18 and p.score > 200:
-            memes.append({
-                'source': 'Reddit',
-                'title': p.title,
-                'url': p.url,
-                'score': p.score,
-                'comments': p.num_comments,
-                'created_utc': p.created_utc
-            })
+    try:
+        for p in sub.hot(limit=limit*2):
+            u = p.url.lower()
+            if u.endswith(('.jpg','.png')) and not p.over_18 and p.score > 200:
+                memes.append({
+                    'source': 'Reddit',
+                    'title': p.title,
+                    'url': p.url,
+                    'score': p.score,
+                    'comments': p.num_comments,
+                    'created_utc': p.created_utc
+                })
+    except Exception as e:
+        print(f"Error fetching memes: {e}")
     return sorted(memes, key=lambda x: x['score'] + x['comments']*1.5, reverse=True)[:limit]
 
 # Pick best meme using AI
@@ -138,15 +141,24 @@ def pick_best_meme(memes):
 def find_meme_with_face():
     app_inst = get_face_app()
 
-    for post in reddit.subreddit('memes+dankmemes').hot(limit=50):
+    for post in reddit.subreddit('memes+dankmemes').hot(limit=30):
         if not post.url.lower().endswith(('.jpg', '.png')):
             continue
         if post.over_18 or post.score < 500:
             continue
 
         try:
-            resp = requests.get(post.url, timeout=10)
+            resp = requests.get(post.url, timeout=5)
             img = np.array(Image.open(BytesIO(resp.content)))
+
+            # Resize large images to save memory and processing time
+            max_dimension = 1024
+            h, w = img.shape[:2]
+            if max(h, w) > max_dimension:
+                scale = max_dimension / max(h, w)
+                new_w, new_h = int(w * scale), int(h * scale)
+                img = cv2.resize(img, (new_w, new_h))
+
             img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
             faces = app_inst.get(img)
 
@@ -155,9 +167,10 @@ def find_meme_with_face():
                 w = face.bbox[2] - face.bbox[0]
                 h = face.bbox[3] - face.bbox[1]
                 area = w * h
-                if area > 10000:  # Large enough face
+                if area > 5000:  # Lower threshold for resized images
                     return img, post
         except Exception as e:
+            print(f"Error processing {post.url}: {e}")
             continue
 
     return None, None
@@ -197,12 +210,20 @@ def index():
 @app.route('/generate', methods=['POST'])
 def generate_meme():
     try:
+        # Return early status
+        print("Starting meme generation...")
+
         # Step 1: Find a meme with a face
+        print("Searching for meme with face...")
         meme_img, post = find_meme_with_face()
         if meme_img is None:
-            return jsonify({'error': 'No suitable meme with face found'}), 404
+            print("No suitable meme found")
+            return jsonify({'error': 'No suitable meme with face found. Please try again.'}), 404
+
+        print(f"Found meme: {post.title}")
 
         # Step 2: Swap the face
+        print("Performing face swap...")
         result = swap_face(meme_img)
 
         # Step 3: Save the result
@@ -210,6 +231,7 @@ def generate_meme():
         output_path = os.path.join(OUTPUT_DIR, output_filename)
         cv2.imwrite(output_path, result)
 
+        print(f"Meme generated successfully: {output_filename}")
         return jsonify({
             'success': True,
             'image_url': f'/static/output/{output_filename}',
@@ -218,7 +240,10 @@ def generate_meme():
         })
 
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        print(f"Error generating meme: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Generation failed: {str(e)}'}), 500
 
 @app.route('/health')
 def health():
